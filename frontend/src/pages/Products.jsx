@@ -218,27 +218,41 @@ const openNewProduct = () => {
 
 
   const openEditProduct = (product) => {
-    setEditingProduct(product)
+  setEditingProduct(product)
 
-    setForm({
-      code: product.code || '',
-      barcode: product.barcode || '',
-      name: product.name || '',
-      description: product.description || '',
-      category_id: product.category_id || '',
-      purchase_price: product.purchase_price ?? '',
-      sale_price: product.sale_price ?? '',
-      minimum_stock: product.minimum_stock ?? 0,
-      stock_unit: product.stock_unit || 'UNIT',
-      price_unit_quantity:
-        product.price_unit_quantity ?? 1,
-      active: product.active ?? true,
-    })
+  setForm({
+    code: product.code || '',
+    barcode: product.barcode || '',
+    name: product.name || '',
+    description: product.description || '',
+    category_id: product.category_id || '',
+    purchase_price: product.purchase_price ?? '',
+    sale_price: product.sale_price ?? '',
+    minimum_stock: product.minimum_stock ?? 0,
+    stock_unit: product.stock_unit || 'UNIT',
+    price_unit_quantity:
+      product.price_unit_quantity ?? 1,
+    active: product.active ?? true,
+  })
 
-    setFormError('')
-    setSuccess('')
-    setShowForm(true)
-  }
+  const associatedSupplierIds = productSuppliers
+    .filter(
+      (relation) =>
+        relation.product_id === product.id
+    )
+    .map(
+      (relation) =>
+        relation.supplier_id
+    )
+
+  setSelectedSupplierIds(
+    associatedSupplierIds
+  )
+
+  setFormError('')
+  setSuccess('')
+  setShowForm(true)
+}
 
 
   const closeForm = () => {
@@ -272,6 +286,30 @@ const openNewProduct = () => {
       ? checked
       : value,
   }))
+}
+const toggleSupplier = (supplierId) => {
+  setSelectedSupplierIds((current) => {
+    if (current.includes(supplierId)) {
+
+      if (
+        Number(initialStock.supplier_id) === supplierId
+      ) {
+        setInitialStock((stock) => ({
+          ...stock,
+          supplier_id: '',
+        }))
+      }
+
+      return current.filter(
+        (id) => id !== supplierId
+      )
+    }
+
+    return [
+      ...current,
+      supplierId,
+    ]
+  })
 }
 
   const handleUnitChange = (event) => {
@@ -949,7 +987,71 @@ const handleSubmit = async (event) => {
                           onChange={handleChange}
                         />
                       </div>
+                      <div className="col-12">
+  <label className="form-label fw-semibold">
+    Proveedores habituales
+  </label>
 
+  <div className="form-text mb-2">
+    Seleccione uno o varios proveedores que comercializan este producto.
+  </div>
+
+  <div className="card bg-light border-0">
+    <div className="card-body py-3">
+
+      {suppliers
+        .filter(
+          (supplier) =>
+            supplier.active !== false ||
+            selectedSupplierIds.includes(
+              supplier.id
+            )
+        )
+        .map((supplier) => (
+          <div
+            className="form-check mb-2"
+            key={supplier.id}
+          >
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id={`supplier-${supplier.id}`}
+              checked={
+                selectedSupplierIds.includes(
+                  supplier.id
+                )
+              }
+              onChange={() =>
+                toggleSupplier(
+                  supplier.id
+                )
+              }
+            />
+
+            <label
+              className="form-check-label"
+              htmlFor={`supplier-${supplier.id}`}
+            >
+              {supplier.name}
+
+              {supplier.active === false && (
+                <span className="badge text-bg-secondary ms-2">
+                  Inactivo
+                </span>
+              )}
+            </label>
+          </div>
+        ))}
+
+      {suppliers.length === 0 && (
+        <span className="text-muted">
+          No hay proveedores registrados.
+        </span>
+      )}
+
+    </div>
+  </div>
+</div>
 
                       <div className="col-6 col-md-3">
                         <label className="form-label">
