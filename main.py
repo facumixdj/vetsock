@@ -1,5 +1,6 @@
 from app.routes.products import router as products_router
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from database import probar_conexion
 from app.routes.categories import router as categories_router
 from app.routes.suppliers import router as suppliers_router
@@ -18,6 +19,16 @@ from app.routes.sales import router as sales_router
 app = FastAPI(
     title="VetStock",
     version="0.1.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://192.168.1.125:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(categories_router)
