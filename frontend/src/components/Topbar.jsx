@@ -18,6 +18,17 @@ function Topbar() {
     <nav className="navbar bg-white border-bottom shadow-sm px-3 sticky-top">
       <div className="container-fluid px-0">
         <div className="d-flex align-items-center gap-2">
+          <Link
+  to="/dashboard"
+  className="btn btn-outline-primary"
+  title="Ir al inicio"
+>
+  <i className="bi bi-house-door"></i>
+
+  <span className="d-none d-md-inline ms-2">
+    Inicio
+  </span>
+</Link>
           <button
             className="btn btn-outline-secondary d-lg-none"
             type="button"

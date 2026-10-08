@@ -28,6 +28,16 @@ function Products() {
   const [suppliers, setSuppliers] = useState([])
   const [productSuppliers, setProductSuppliers] = useState([])
   const [selectedSupplierIds, setSelectedSupplierIds] = useState([])
+  const [productConversions, setProductConversions] = useState([])
+
+const [showConversion, setShowConversion] = useState(false)
+const [conversionProduct, setConversionProduct] = useState(null)
+
+const [selectedConversionId, setSelectedConversionId] = useState('')
+const [selectedConversionLotId, setSelectedConversionLotId] = useState('')
+const [conversionTimes, setConversionTimes] = useState(1)
+
+const [converting, setConverting] = useState(false)
   const [initialStock, setInitialStock] = useState({
   enabled: false,
   quantity: '',
@@ -63,11 +73,13 @@ function Products() {
         categoriesResponse,
         suppliersResponse,
         productSuppliersResponse,
+        productConversionsResponse,
       ] = await Promise.all([
         api.get('/products/'),
         api.get('/categories/'),
         api.get('/suppliers/'),
         api.get('/product-suppliers/'),
+        api.get('/product-conversions/'),
       ])
 
       const productList = productsResponse.data
@@ -76,6 +88,7 @@ function Products() {
       setCategories(categoriesResponse.data)
       setSuppliers(suppliersResponse.data)
       setProductSuppliers(productSuppliersResponse.data)
+      setProductConversions(productConversionsResponse.data)
 
       const stockResults = await Promise.allSettled(
         productList.map((product) =>
@@ -311,7 +324,115 @@ const toggleSupplier = (supplierId) => {
     ]
   })
 }
+const getProduct = (productId) => {
+  return products.find(
+    (product) => product.id === productId
+  )
+}
 
+
+const getProductConversions = (productId) => {
+  return productConversions.filter(
+    (conversion) =>
+      conversion.source_product_id === productId
+  )
+}
+
+
+const hasConversion = (productId) => {
+  return getProductConversions(productId).length > 0
+}
+
+
+const openConversion = (product) => {
+  const conversions =
+    getProductConversions(product.id)
+
+  if (conversions.length === 0) {
+    setError(
+      `El producto "${product.name}" no tiene una regla de fraccionamiento configurada.`
+    )
+    return
+  }
+
+  const availableLots =
+    stocks[product.id]?.lots?.filter(
+      (lot) => Number(lot.stock) > 0
+    ) || []
+
+  if (availableLots.length === 0) {
+    setError(
+      `El producto "${product.name}" no tiene stock disponible para fraccionar.`
+    )
+    return
+  }
+
+  setConversionProduct(product)
+
+  setSelectedConversionId(
+    String(conversions[0].id)
+  )
+
+  setSelectedConversionLotId(
+    String(availableLots[0].lot_id)
+  )
+
+  setConversionTimes(1)
+
+  setError('')
+  setSuccess('')
+  setShowConversion(true)
+}
+
+
+const executeConversion = async (event) => {
+  event.preventDefault()
+
+  if (
+    !selectedConversionId ||
+    !selectedConversionLotId
+  ) {
+    setError(
+      'Debe seleccionar una conversión y un lote.'
+    )
+    return
+  }
+
+  setConverting(true)
+  setError('')
+  setSuccess('')
+
+  try {
+    const response = await api.post(
+      `/product-conversions/${selectedConversionId}/execute`,
+      {
+        source_lot_id:
+          Number(selectedConversionLotId),
+
+        times:
+          Number(conversionTimes),
+      }
+    )
+
+    setShowConversion(false)
+    setConversionProduct(null)
+
+    setSuccess(
+      response.data.message ||
+      'Producto fraccionado correctamente.'
+    )
+
+    await loadProducts()
+
+  } catch (err) {
+    setError(
+      err.response?.data?.detail ||
+      'No se pudo realizar el fraccionamiento'
+    )
+  } finally {
+    setConverting(false)
+  }
+}
   const handleUnitChange = (event) => {
     const unit = event.target.value
 
@@ -685,10 +806,9 @@ const handleSubmit = async (event) => {
                   </th>
                   <th>Estado</th>
 
-                  {user.role === 'ADMIN' && (
-                    <th className="text-end">
-                      Acciones
-                    </th>
+<th className="text-end">
+  Acciones
+</th>
                   )}
                 </tr>
               </thead>
@@ -742,19 +862,33 @@ const handleSubmit = async (event) => {
                       )}
                     </td>
 
-                    {user.role === 'ADMIN' && (
-                      <td className="text-end">
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          title="Editar producto"
-                          onClick={() =>
-                            openEditProduct(product)
-                          }
-                        >
-                          <i className="bi bi-pencil"></i>
-                        </button>
-                      </td>
-                    )}
+                    <td className="text-end">
+
+  {hasConversion(product.id) && (
+    <button
+      className="btn btn-sm btn-outline-success me-2"
+      title="Abrir / Fraccionar"
+      onClick={() =>
+        openConversion(product)
+      }
+    >
+      <i className="bi bi-box-arrow-up-right"></i>
+    </button>
+  )}
+
+  {user.role === 'ADMIN' && (
+    <button
+      className="btn btn-sm btn-outline-primary"
+      title="Editar producto"
+      onClick={() =>
+        openEditProduct(product)
+      }
+    >
+      <i className="bi bi-pencil"></i>
+    </button>
+  )}
+
+</td>
                   </tr>
                 ))}
 
