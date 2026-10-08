@@ -809,7 +809,7 @@ const handleSubmit = async (event) => {
 <th className="text-end">
   Acciones
 </th>
-                  )}
+                  
                 </tr>
               </thead>
 
