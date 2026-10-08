@@ -75,6 +75,7 @@ function Products() {
       setProducts(productList)
       setCategories(categoriesResponse.data)
       setSuppliers(suppliersResponse.data)
+      setProductSuppliers(productSuppliersResponse.data)
 
       const stockResults = await Promise.allSettled(
         productList.map((product) =>
@@ -201,7 +202,7 @@ const openNewProduct = () => {
     ...emptyForm,
     category_id: categories[0]?.id || '',
   })
-
+  setSelectedSupplierIds([])
   setInitialStock({
     enabled: false,
     quantity: '',
@@ -299,6 +300,7 @@ const handleSubmit = async (event) => {
 
   const payload = {
     code: form.code.trim(),
+
     barcode:
       form.barcode.trim() === ''
         ? null
@@ -312,22 +314,98 @@ const handleSubmit = async (event) => {
         : form.description.trim(),
 
     category_id: Number(form.category_id),
+
     purchase_price: Number(form.purchase_price),
+
     sale_price: Number(form.sale_price),
+
     minimum_stock: Number(form.minimum_stock),
+
     stock_unit: form.stock_unit,
-    price_unit_quantity: Number(form.price_unit_quantity),
+
+    price_unit_quantity:
+      Number(form.price_unit_quantity),
+
     active: Boolean(form.active),
   }
 
   try {
-
     if (editingProduct) {
 
+      /*
+       * 1. Actualizar producto
+       */
       await api.patch(
         `/products/${editingProduct.id}`,
         payload
       )
+
+
+      /*
+       * 2. Obtener asociaciones actuales
+       */
+      const existingRelations =
+        productSuppliers.filter(
+          (relation) =>
+            relation.product_id ===
+            editingProduct.id
+        )
+
+
+      const existingSupplierIds =
+        existingRelations.map(
+          (relation) =>
+            relation.supplier_id
+        )
+
+
+      /*
+       * 3. Detectar proveedores nuevos
+       */
+      const suppliersToAdd =
+        selectedSupplierIds.filter(
+          (supplierId) =>
+            !existingSupplierIds.includes(
+              supplierId
+            )
+        )
+
+
+      /*
+       * 4. Detectar proveedores quitados
+       */
+      const relationsToDelete =
+        existingRelations.filter(
+          (relation) =>
+            !selectedSupplierIds.includes(
+              relation.supplier_id
+            )
+        )
+
+
+      /*
+       * 5. Crear nuevas asociaciones
+       */
+      for (const supplierId of suppliersToAdd) {
+        await api.post(
+          '/product-suppliers/',
+          {
+            product_id: editingProduct.id,
+            supplier_id: supplierId,
+          }
+        )
+      }
+
+
+      /*
+       * 6. Eliminar asociaciones quitadas
+       */
+      for (const relation of relationsToDelete) {
+        await api.delete(
+          `/product-suppliers/${relation.id}`
+        )
+      }
+
 
       setSuccess(
         'Producto actualizado correctamente.'
@@ -345,8 +423,23 @@ const handleSubmit = async (event) => {
 
       const newProduct = productResponse.data
 
+
       /*
-       * 2. Stock inicial opcional
+       * 2. Asociar proveedores habituales
+       */
+      for (const supplierId of selectedSupplierIds) {
+        await api.post(
+          '/product-suppliers/',
+          {
+            product_id: newProduct.id,
+            supplier_id: supplierId,
+          }
+        )
+      }
+
+
+      /*
+       * 3. Stock inicial opcional
        */
       if (
         initialStock.enabled &&
@@ -358,6 +451,7 @@ const handleSubmit = async (event) => {
             'Para cargar stock inicial debe indicar un número de lote.'
           )
         }
+
 
         /*
          * Crear lote
@@ -381,14 +475,17 @@ const handleSubmit = async (event) => {
                 .slice(0, 10),
 
             expiration_date:
-              initialStock.expiration_date || null,
+              initialStock.expiration_date ||
+              null,
 
             purchase_cost:
               Number(form.purchase_price),
           }
         )
 
+
         const newLot = lotResponse.data
+
 
         /*
          * Crear movimiento de entrada
@@ -397,13 +494,21 @@ const handleSubmit = async (event) => {
           '/stock-movements/',
           {
             lot_id: newLot.id,
+
             movement_type: 'IN',
-            quantity: Number(initialStock.quantity),
-            reason: 'Stock inicial',
-            reference: `INIT-${newProduct.id}`,
+
+            quantity:
+              Number(initialStock.quantity),
+
+            reason:
+              'Stock inicial',
+
+            reference:
+              `INIT-${newProduct.id}`,
           }
         )
       }
+
 
       setSuccess(
         initialStock.enabled
@@ -412,9 +517,17 @@ const handleSubmit = async (event) => {
       )
     }
 
+
+    /*
+     * Limpiar formulario
+     */
     setShowForm(false)
+
     setEditingProduct(null)
+
     setForm(emptyForm)
+
+    setSelectedSupplierIds([])
 
     setInitialStock({
       enabled: false,
@@ -424,6 +537,10 @@ const handleSubmit = async (event) => {
       expiration_date: '',
     })
 
+
+    /*
+     * Recargar productos, stock y asociaciones
+     */
     await loadProducts()
 
   } catch (err) {
