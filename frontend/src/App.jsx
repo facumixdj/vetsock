@@ -1,3 +1,4 @@
+import SalesHistory from './pages/SalesHistory'
 import {
   Navigate,
   Route,
@@ -51,6 +52,7 @@ function App() {
       />
       <Route path="/products" element={<Products />} />
       <Route path="/sales" element={<Sales />} />
+      <Route path="/sales/history" element={<SalesHistory />} />
       <Route path="/cash" element={<Cash />} />
       <Route path="/alerts" element={<Alerts />} />
       <Route path="/admin" element={<Admin />} />
