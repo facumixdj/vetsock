@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 function Topbar() {
   const navigate = useNavigate()
@@ -44,6 +44,7 @@ function Topbar() {
                 : 'Vendedor'}
             </small>
           </div>
+          
 
           <div
             className="rounded-circle bg-light border d-flex align-items-center justify-content-center"
