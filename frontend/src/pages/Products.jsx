@@ -482,7 +482,126 @@ const executeConversion = async (event) => {
   setSuccess('')
   setShowStockEntry(true)
 }
-   const handleUnitChange = (event) => {
+
+
+const handleStockEntryChange = (event) => {
+  const { name, value } = event.target
+
+  setStockEntry((current) => ({
+    ...current,
+    [name]: value,
+  }))
+}
+
+
+const saveStockEntry = async (event) => {
+  event.preventDefault()
+
+  if (!stockEntryProduct) {
+    return
+  }
+
+  const quantity = Number(stockEntry.quantity)
+  const lotNumber = stockEntry.lot_number.trim()
+  const purchaseCost = Number(stockEntry.purchase_cost || 0)
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    setError('La cantidad debe ser mayor que cero.')
+    return
+  }
+
+  if (!lotNumber) {
+    setError('Debe indicar un número de lote.')
+    return
+  }
+
+  if (!Number.isFinite(purchaseCost) || purchaseCost < 0) {
+    setError('El costo de compra no es válido.')
+    return
+  }
+
+  setSavingStockEntry(true)
+  setError('')
+  setSuccess('')
+
+  try {
+    const existingLot =
+      stocks[stockEntryProduct.id]?.lots?.find(
+        (lot) =>
+          String(lot.lot_number || '').trim().toLowerCase() ===
+          lotNumber.toLowerCase()
+      )
+
+    let lotId
+
+    if (existingLot) {
+      lotId = existingLot.lot_id
+    } else {
+      const lotResponse = await api.post(
+        '/lots/',
+        {
+          product_id: stockEntryProduct.id,
+          supplier_id:
+            stockEntry.supplier_id
+              ? Number(stockEntry.supplier_id)
+              : null,
+          lot_number: lotNumber,
+          entry_date:
+            new Date().toISOString().slice(0, 10),
+          expiration_date:
+            stockEntry.expiration_date || null,
+          purchase_cost: purchaseCost,
+        }
+      )
+
+      lotId = lotResponse.data.id
+    }
+
+    await api.post(
+      '/stock-movements/',
+      {
+        lot_id: lotId,
+        movement_type: 'IN',
+        quantity,
+        reason: 'Ingreso de mercadería',
+        reference: `COMPRA-${Date.now()}`,
+      }
+    )
+
+    setShowStockEntry(false)
+    setStockEntryProduct(null)
+
+    setStockEntry({
+      quantity: '',
+      lot_number: '',
+      supplier_id: '',
+      expiration_date: '',
+      purchase_cost: '',
+    })
+
+    setSuccess(
+      existingLot
+        ? `Stock agregado al lote ${lotNumber} correctamente.`
+        : `Nuevo lote ${lotNumber} ingresado correctamente.`
+    )
+
+    await loadProducts()
+
+  } catch (err) {
+    console.error(err)
+
+    setError(
+      err.response?.data?.detail ||
+      err.message ||
+      'No se pudo ingresar el stock'
+    )
+  } finally {
+    setSavingStockEntry(false)
+  }
+}
+
+
+const handleUnitChange = (event) => {
     const unit = event.target.value
 
     let priceUnitQuantity = 1
@@ -913,42 +1032,50 @@ const handleSubmit = async (event) => {
 
                     <td className="text-end">
 
-  {hasConversion(product.id) && (
-    <button
-      className="btn btn-sm btn-outline-success me-2"
-      title="Abrir / Fraccionar"
-      onClick={() =>
-        openConversion(product)
-      }
-    >
-      <i className="bi bi-box-arrow-up-right"></i>
-    </button>
-  )}
+                      {user.role === 'ADMIN' && (
+                        <button
+                          className="btn btn-sm btn-outline-dark me-2"
+                          title="Ingresar stock"
+                          onClick={() =>
+                            openStockEntry(product)
+                          }
+                        >
+                          <i className="bi bi-box-arrow-in-down"></i>
+                        </button>
+                      )}
 
-  {user.role === 'ADMIN' && (
-    <button
-      className="btn btn-sm btn-outline-primary"
-      title="Editar producto"
-      onClick={() =>
-        openEditProduct(product)
-      }
-    >
-      <i className="bi bi-pencil"></i>
-    </button>
-  )}
+                      {hasConversion(product.id) && (
+                        <button
+                          className="btn btn-sm btn-outline-success me-2"
+                          title="Abrir / Fraccionar"
+                          onClick={() =>
+                            openConversion(product)
+                          }
+                        >
+                          <i className="bi bi-box-arrow-up-right"></i>
+                        </button>
+                      )}
 
-</td>
+                      {user.role === 'ADMIN' && (
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          title="Editar producto"
+                          onClick={() =>
+                            openEditProduct(product)
+                          }
+                        >
+                          <i className="bi bi-pencil"></i>
+                        </button>
+                      )}
+
+                    </td>
                   </tr>
                 ))}
 
                 {filteredProducts.length === 0 && (
                   <tr>
                     <td
-                      colSpan={
-                        user.role === 'ADMIN'
-                          ? 7
-                          : 6
-                      }
+                      colSpan="7"
                       className="text-center py-4 text-muted"
                     >
                       No se encontraron productos.
@@ -1025,8 +1152,33 @@ const handleSubmit = async (event) => {
                     </div>
                   </div>
 
-                  {user.role === 'ADMIN' && (
-                    <div className="d-grid mt-3">
+                  <div className="d-grid gap-2 mt-3">
+
+                    {user.role === 'ADMIN' && (
+                      <button
+                        className="btn btn-outline-dark"
+                        onClick={() =>
+                          openStockEntry(product)
+                        }
+                      >
+                        <i className="bi bi-box-arrow-in-down me-2"></i>
+                        Ingresar stock
+                      </button>
+                    )}
+
+                    {hasConversion(product.id) && (
+                      <button
+                        className="btn btn-outline-success"
+                        onClick={() =>
+                          openConversion(product)
+                        }
+                      >
+                        <i className="bi bi-box-arrow-up-right me-2"></i>
+                        Abrir / Fraccionar
+                      </button>
+                    )}
+
+                    {user.role === 'ADMIN' && (
                       <button
                         className="btn btn-outline-primary"
                         onClick={() =>
@@ -1036,14 +1188,493 @@ const handleSubmit = async (event) => {
                         <i className="bi bi-pencil me-2"></i>
                         Editar
                       </button>
-                    </div>
-                  )}
+                    )}
+
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+
+      {showConversion && conversionProduct && (
+        <>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+
+                <form onSubmit={executeConversion}>
+
+                  <div className="modal-header">
+                    <div>
+                      <h5 className="modal-title">
+                        Abrir / Fraccionar
+                      </h5>
+
+                      <small className="text-muted">
+                        {conversionProduct.name}
+                      </small>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-close"
+                      disabled={converting}
+                      onClick={() =>
+                        setShowConversion(false)
+                      }
+                    />
+                  </div>
+
+
+                  <div className="modal-body">
+
+                    <div className="mb-3">
+                      <label className="form-label">
+                        Conversión
+                      </label>
+
+                      <select
+                        className="form-select"
+                        value={selectedConversionId}
+                        onChange={(event) =>
+                          setSelectedConversionId(
+                            event.target.value
+                          )
+                        }
+                        required
+                      >
+                        {getProductConversions(
+                          conversionProduct.id
+                        ).map((conversion) => {
+                          const target =
+                            getProduct(
+                              conversion.target_product_id
+                            )
+
+                          return (
+                            <option
+                              key={conversion.id}
+                              value={conversion.id}
+                            >
+                              {conversion.name}
+                              {' - '}
+                              {conversion.source_quantity}
+                              {' → '}
+                              {conversion.target_quantity}
+                              {' '}
+                              {target?.stock_unit === 'GRAM'
+                                ? 'g'
+                                : target?.stock_unit === 'ML'
+                                  ? 'ml'
+                                  : 'u.'}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
+
+
+                    <div className="mb-3">
+                      <label className="form-label">
+                        Lote a abrir
+                      </label>
+
+                      <select
+                        className="form-select"
+                        value={selectedConversionLotId}
+                        onChange={(event) =>
+                          setSelectedConversionLotId(
+                            event.target.value
+                          )
+                        }
+                        required
+                      >
+                        {(
+                          stocks[
+                            conversionProduct.id
+                          ]?.lots || []
+                        )
+                          .filter(
+                            (lot) =>
+                              Number(lot.stock) > 0
+                          )
+                          .map((lot) => (
+                            <option
+                              key={lot.lot_id}
+                              value={lot.lot_id}
+                            >
+                              {lot.lot_number}
+                              {' - Stock: '}
+                              {lot.stock}
+                              {' '}
+                              {conversionProduct.stock_unit === 'UNIT'
+                                ? 'u.'
+                                : conversionProduct.stock_unit === 'GRAM'
+                                  ? 'g'
+                                  : 'ml'}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+
+                    <div className="mb-3">
+                      <label className="form-label">
+                        Cantidad a abrir
+                      </label>
+
+                      <input
+                        type="number"
+                        className="form-control"
+                        min="1"
+                        step="1"
+                        value={conversionTimes}
+                        onChange={(event) =>
+                          setConversionTimes(
+                            event.target.value
+                          )
+                        }
+                        required
+                      />
+
+                      <div className="form-text">
+                        Normalmente será 1 bolsa.
+                      </div>
+                    </div>
+
+
+                    {selectedConversionId && (() => {
+                      const conversion =
+                        productConversions.find(
+                          (item) =>
+                            item.id ===
+                            Number(selectedConversionId)
+                        )
+
+                      if (!conversion) {
+                        return null
+                      }
+
+                      const target =
+                        getProduct(
+                          conversion.target_product_id
+                        )
+
+                      return (
+                        <div className="alert alert-info mb-0">
+
+                          <div>
+                            Se descontará:
+                            <strong className="ms-2">
+                              {
+                                conversion.source_quantity *
+                                Number(conversionTimes || 1)
+                              }
+                              {' '}
+                              {conversionProduct.stock_unit === 'UNIT'
+                                ? 'u.'
+                                : conversionProduct.stock_unit === 'GRAM'
+                                  ? 'g'
+                                  : 'ml'}
+                            </strong>
+                          </div>
+
+                          <div className="mt-2">
+                            Se generará:
+                            <strong className="ms-2">
+                              {
+                                conversion.target_quantity *
+                                Number(conversionTimes || 1)
+                              }
+                              {' '}
+                              {target?.stock_unit === 'GRAM'
+                                ? 'g'
+                                : target?.stock_unit === 'ML'
+                                  ? 'ml'
+                                  : 'u.'}
+                            </strong>
+                          </div>
+
+                          {target && (
+                            <div className="mt-2">
+                              Producto destino:
+                              <strong className="ms-2">
+                                {target.name}
+                              </strong>
+                            </div>
+                          )}
+
+                        </div>
+                      )
+                    })()}
+
+                  </div>
+
+
+                  <div className="modal-footer">
+
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      disabled={converting}
+                      onClick={() =>
+                        setShowConversion(false)
+                      }
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      type="submit"
+                      className="btn btn-success"
+                      disabled={converting}
+                    >
+                      {converting ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" />
+                          Procesando...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-box-arrow-up-right me-2"></i>
+                          Confirmar apertura
+                        </>
+                      )}
+                    </button>
+
+                  </div>
+
+                </form>
+
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-backdrop fade show"></div>
+        </>
+      )}
+
+
+      {showStockEntry && stockEntryProduct && (
+        <>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+
+                <form onSubmit={saveStockEntry}>
+
+                  <div className="modal-header">
+                    <div>
+                      <h5 className="modal-title">
+                        Ingresar stock
+                      </h5>
+
+                      <small className="text-muted">
+                        {stockEntryProduct.name}
+                      </small>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-close"
+                      disabled={savingStockEntry}
+                      onClick={() =>
+                        setShowStockEntry(false)
+                      }
+                    />
+                  </div>
+
+
+                  <div className="modal-body">
+
+                    <div className="alert alert-light border">
+                      Stock actual:
+                      <strong className="ms-2">
+                        {formatStock(stockEntryProduct)}
+                      </strong>
+                    </div>
+
+
+                    <div className="row g-3">
+
+                      <div className="col-12 col-md-6">
+                        <label className="form-label">
+                          Cantidad
+                        </label>
+
+                        <input
+                          type="number"
+                          className="form-control"
+                          name="quantity"
+                          min="1"
+                          step="1"
+                          value={stockEntry.quantity}
+                          onChange={handleStockEntryChange}
+                          required
+                          autoFocus
+                        />
+
+                        <div className="form-text">
+                          {stockEntryProduct.stock_unit === 'GRAM'
+                            ? 'Ingresar cantidad en gramos'
+                            : stockEntryProduct.stock_unit === 'ML'
+                              ? 'Ingresar cantidad en mililitros'
+                              : 'Ingresar cantidad de unidades'}
+                        </div>
+                      </div>
+
+
+                      <div className="col-12 col-md-6">
+                        <label className="form-label">
+                          Número de lote
+                        </label>
+
+                        <input
+                          type="text"
+                          className="form-control"
+                          name="lot_number"
+                          value={stockEntry.lot_number}
+                          onChange={handleStockEntryChange}
+                          required
+                        />
+
+                        <div className="form-text">
+                          Si el lote ya existe, el stock se suma al mismo lote.
+                        </div>
+                      </div>
+
+
+                      <div className="col-12 col-md-6">
+                        <label className="form-label">
+                          Proveedor
+                        </label>
+
+                        <select
+                          className="form-select"
+                          name="supplier_id"
+                          value={stockEntry.supplier_id}
+                          onChange={handleStockEntryChange}
+                        >
+                          <option value="">
+                            Sin proveedor
+                          </option>
+
+                          {suppliers
+                            .filter(
+                              (supplier) =>
+                                supplier.active !== false
+                            )
+                            .map((supplier) => (
+                              <option
+                                key={supplier.id}
+                                value={supplier.id}
+                              >
+                                {supplier.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+
+                      <div className="col-12 col-md-6">
+                        <label className="form-label">
+                          Vencimiento
+                        </label>
+
+                        <input
+                          type="date"
+                          className="form-control"
+                          name="expiration_date"
+                          value={stockEntry.expiration_date}
+                          onChange={handleStockEntryChange}
+                        />
+                      </div>
+
+
+                      <div className="col-12">
+                        <label className="form-label">
+                          Costo de compra
+                        </label>
+
+                        <div className="input-group">
+                          <span className="input-group-text">
+                            $
+                          </span>
+
+                          <input
+                            type="number"
+                            className="form-control"
+                            name="purchase_cost"
+                            min="0"
+                            step="0.01"
+                            value={stockEntry.purchase_cost}
+                            onChange={handleStockEntryChange}
+                            required
+                          />
+                        </div>
+
+                        <div className="form-text">
+                          Para un lote nuevo se guardará este costo.
+                          Si el lote ya existe, se conserva el costo registrado del lote.
+                        </div>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="modal-footer">
+
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      disabled={savingStockEntry}
+                      onClick={() =>
+                        setShowStockEntry(false)
+                      }
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      type="submit"
+                      className="btn btn-dark"
+                      disabled={savingStockEntry}
+                    >
+                      {savingStockEntry ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" />
+                          Ingresando...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-box-arrow-in-down me-2"></i>
+                          Confirmar ingreso
+                        </>
+                      )}
+                    </button>
+
+                  </div>
+
+                </form>
+
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-backdrop fade show"></div>
+        </>
+      )}
 
 
       {showForm && (
