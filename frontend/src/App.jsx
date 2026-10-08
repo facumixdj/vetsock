@@ -1,4 +1,5 @@
 import SalesHistory from './pages/SalesHistory'
+
 import {
   Navigate,
   Route,
@@ -17,19 +18,27 @@ import Dashboard from './pages/Dashboard'
 import MainLayout from './layouts/MainLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 
+
 function App() {
   return (
     <Routes>
 
       <Route
         path="/"
-        element={<Navigate to="/dashboard" replace />}
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
       />
+
 
       <Route
         path="/login"
         element={<Login />}
       />
+
 
       <Route
         element={
@@ -44,18 +53,49 @@ function App() {
           element={<Dashboard />}
         />
 
+        <Route
+          path="/products"
+          element={<Products />}
+        />
+
+        <Route
+          path="/sales"
+          element={<Sales />}
+        />
+
+        <Route
+          path="/sales/history"
+          element={<SalesHistory />}
+        />
+
+        <Route
+          path="/cash"
+          element={<Cash />}
+        />
+
+        <Route
+          path="/alerts"
+          element={<Alerts />}
+        />
+
+        <Route
+          path="/admin"
+          element={<Admin />}
+        />
+
       </Route>
+
 
       <Route
         path="*"
-        element={<Navigate to="/dashboard" replace />}
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
       />
-      <Route path="/products" element={<Products />} />
-      <Route path="/sales" element={<Sales />} />
-      <Route path="/sales/history" element={<SalesHistory />} />
-      <Route path="/cash" element={<Cash />} />
-      <Route path="/alerts" element={<Alerts />} />
-      <Route path="/admin" element={<Admin />} />
+
     </Routes>
   )
 }
