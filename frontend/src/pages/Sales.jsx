@@ -130,6 +130,22 @@ function Sales() {
   }
 
 
+  const isLotExpired = (lot) => {
+    if (!lot.expiration_date) {
+      return false
+    }
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const expiration = new Date(
+      `${lot.expiration_date}T00:00:00`
+    )
+
+    return expiration < today
+  }
+
+
   const getAvailableLots = (product) => {
     const stockData = stocks[product.id]
 
@@ -138,15 +154,28 @@ function Sales() {
     }
 
     return stockData.lots
-      .filter((lot) => Number(lot.stock) > 0)
+      .filter(
+        (lot) =>
+          Number(lot.stock) > 0 &&
+          !isLotExpired(lot)
+      )
       .sort((a, b) => {
         if (!a.expiration_date && !b.expiration_date) return 0
         if (!a.expiration_date) return 1
         if (!b.expiration_date) return -1
 
-        return new Date(a.expiration_date) -
-          new Date(b.expiration_date)
+        return new Date(`${a.expiration_date}T00:00:00`) -
+          new Date(`${b.expiration_date}T00:00:00`)
       })
+  }
+
+
+  const getSaleableStock = (product) => {
+    return getAvailableLots(product).reduce(
+      (total, lot) =>
+        total + Number(lot.stock || 0),
+      0
+    )
   }
 
 
@@ -447,10 +476,7 @@ function Sales() {
           <div className="row g-3">
 
             {filteredProducts.map((product) => {
-              const stockData = stocks[product.id]
-
-              const stock =
-                Number(stockData?.total_stock || 0)
+              const stock = getSaleableStock(product)
 
               return (
                 <div
@@ -497,7 +523,7 @@ function Sales() {
 
 
                       <div className="small mb-3">
-                        Stock:{' '}
+                        Disponible para venta:{' '}
                         <strong>
                           {formatQuantity(
                             stock,

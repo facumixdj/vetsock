@@ -1,5 +1,6 @@
+from collections import Counter
+from datetime import date, datetime, timezone
 from decimal import Decimal
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -7,14 +8,14 @@ from sqlalchemy.orm import Session
 from app.models.cash_movement import CashMovement
 from app.models.cash_session import CashSession
 from app.models.lot import Lot
+from app.models.product import Product
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.stock_movement import StockMovement
 from app.models.user import User
 from app.routes.stock_movements import get_lot_stock
-from app.schemas.sale import SaleCreate, SaleRead, SaleCancel
+from app.schemas.sale import SaleCancel, SaleCreate, SaleRead
 from app.services.auth import get_current_user, require_admin
-from app.models.product import Product
 from database import get_db
 
 
@@ -46,8 +47,30 @@ def create_sale(
             detail="La venta debe contener al menos un producto"
         )
 
+    # Un mismo lote no debe aparecer más de una vez dentro de la venta.
+    # Esto evita validar dos líneas contra el mismo stock inicial.
+    lot_ids = [item.lot_id for item in data.items]
+    duplicated_lots = sorted(
+        lot_id
+        for lot_id, count in Counter(lot_ids).items()
+        if count > 1
+    )
+
+    if duplicated_lots:
+        duplicated_text = ", ".join(
+            str(lot_id) for lot_id in duplicated_lots
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "La venta contiene lotes repetidos: "
+                f"{duplicated_text}. Agrupe la cantidad en una sola línea."
+            )
+        )
+
     prepared_items = []
     total_amount = Decimal("0")
+    today = date.today()
 
     try:
         for item in data.items:
@@ -61,17 +84,17 @@ def create_sale(
                     detail=f"Lote {item.lot_id} no encontrado"
                 )
 
-            available_stock = get_lot_stock(
-                db,
-                lot.id
-            )
-
-            if item.quantity > available_stock:
+            # Regla de seguridad: un lote vencido jamás se vende,
+            # aunque un cliente intente llamar al endpoint directamente.
+            if (
+                lot.expiration_date is not None
+                and lot.expiration_date < today
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail=(
-                        f"Stock insuficiente en lote {lot.id}. "
-                        f"Disponible: {available_stock}"
+                        f"El lote {lot.lot_number} está vencido "
+                        f"({lot.expiration_date.isoformat()}) y no puede venderse"
                     )
                 )
 
@@ -85,10 +108,38 @@ def create_sale(
                     detail=f"Producto {lot.product_id} no encontrado"
                 )
 
+            # El frontend ya oculta productos inactivos, pero esta regla
+            # debe vivir también en backend para proteger la integridad.
+            if not product.active:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f'El producto "{product.name}" está inactivo '
+                        "y no puede venderse"
+                    )
+                )
+
+            available_stock = get_lot_stock(
+                db,
+                lot.id
+            )
+
+            if item.quantity > available_stock:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Stock insuficiente en lote {lot.lot_number}. "
+                        f"Disponible: {available_stock}"
+                    )
+                )
+
             if product.price_unit_quantity <= 0:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Producto {product.id} tiene configuración de precio inválida"
+                    detail=(
+                        f"Producto {product.id} tiene "
+                        "configuración de precio inválida"
+                    )
                 )
 
             subtotal = (
@@ -98,7 +149,6 @@ def create_sale(
             )
 
             subtotal = subtotal.quantize(Decimal("0.01"))
-
             total_amount += subtotal
 
             prepared_items.append({
@@ -109,7 +159,6 @@ def create_sale(
                 "price_unit_quantity": product.price_unit_quantity,
                 "subtotal": subtotal,
             })
-
 
         sale = Sale(
             cash_session_id=cash_session.id,
@@ -171,6 +220,8 @@ def create_sale(
     except Exception:
         db.rollback()
         raise
+
+
 @router.get("/")
 def list_sales(
     db: Session = Depends(get_db),
@@ -203,15 +254,16 @@ def list_sales(
                     "lot_id": item.lot_id,
                     "quantity": item.quantity,
                     "unit_price": item.unit_price,
-		    "price_unit_quantity": item.price_unit_quantity,
+                    "price_unit_quantity": item.price_unit_quantity,
                     "subtotal": item.subtotal,
-
                 }
                 for item in items
             ]
         })
 
     return result
+
+
 @router.get("/{sale_id}")
 def get_sale(
     sale_id: int,
@@ -248,11 +300,14 @@ def get_sale(
                 "lot_id": item.lot_id,
                 "quantity": item.quantity,
                 "unit_price": item.unit_price,
+                "price_unit_quantity": item.price_unit_quantity,
                 "subtotal": item.subtotal,
             }
             for item in items
         ]
     }
+
+
 @router.post("/{sale_id}/cancel")
 def cancel_sale(
     sale_id: int,
