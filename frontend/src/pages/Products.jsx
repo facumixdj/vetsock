@@ -1261,10 +1261,13 @@ const handleSubmit = async (event) => {
                 </option>
 
                 {suppliers
-                  .filter(
-                    (supplier) =>
-                      supplier.active !== false
-                  )
+  .filter(
+    (supplier) =>
+      supplier.active !== false &&
+      selectedSupplierIds.includes(
+        supplier.id
+      )
+  )
                   .map((supplier) => (
                     <option
                       key={supplier.id}
