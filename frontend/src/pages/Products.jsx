@@ -38,6 +38,17 @@ const [selectedConversionLotId, setSelectedConversionLotId] = useState('')
 const [conversionTimes, setConversionTimes] = useState(1)
 
 const [converting, setConverting] = useState(false)
+const [showStockEntry, setShowStockEntry] = useState(false)
+const [stockEntryProduct, setStockEntryProduct] = useState(null)
+const [savingStockEntry, setSavingStockEntry] = useState(false)
+
+const [stockEntry, setStockEntry] = useState({
+  quantity: '',
+  lot_number: '',
+  supplier_id: '',
+  expiration_date: '',
+  purchase_cost: '',
+})
   const [initialStock, setInitialStock] = useState({
   enabled: false,
   quantity: '',
@@ -433,7 +444,45 @@ const executeConversion = async (event) => {
     setConverting(false)
   }
 }
-  const handleUnitChange = (event) => {
+  const openStockEntry = (product) => {
+  const habitualSupplierIds = productSuppliers
+    .filter(
+      (relation) =>
+        relation.product_id === product.id
+    )
+    .map(
+      (relation) =>
+        relation.supplier_id
+    )
+
+  const firstSupplier =
+    suppliers.find(
+      (supplier) =>
+        habitualSupplierIds.includes(
+          supplier.id
+        ) &&
+        supplier.active !== false
+    )
+
+  setStockEntryProduct(product)
+
+  setStockEntry({
+    quantity: '',
+    lot_number: '',
+    supplier_id:
+      firstSupplier?.id
+        ? String(firstSupplier.id)
+        : '',
+    expiration_date: '',
+    purchase_cost:
+      product.purchase_price ?? '',
+  })
+
+  setError('')
+  setSuccess('')
+  setShowStockEntry(true)
+}
+   const handleUnitChange = (event) => {
     const unit = event.target.value
 
     let priceUnitQuantity = 1
