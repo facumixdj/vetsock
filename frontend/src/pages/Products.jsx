@@ -1683,10 +1683,24 @@ const handleSubmit = async (event) => {
             className="modal fade show d-block"
             tabIndex="-1"
           >
-            <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-              <div className="modal-content">
+            <div
+              className="modal-dialog modal-lg modal-dialog-scrollable"
+              style={{
+                height: 'calc(100vh - 2rem)',
+                maxHeight: 'calc(100vh - 2rem)',
+                margin: '1rem auto',
+              }}
+            >
+              <div
+                className="modal-content"
+                style={{
+                  height: '100%',
+                  maxHeight: '100%',
+                  overflow: 'hidden',
+                }}
+              >
 
-                <div className="modal-header">
+                <div className="modal-header flex-shrink-0">
                   <h5 className="modal-title">
                     {editingProduct
                       ? 'Editar producto'
@@ -1701,8 +1715,24 @@ const handleSubmit = async (event) => {
                 </div>
 
 
-                <form onSubmit={handleSubmit}>
-                  <div className="modal-body">
+                <form
+                  onSubmit={handleSubmit}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    flex: '1 1 auto',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    className="modal-body"
+                    style={{
+                      overflowY: 'auto',
+                      minHeight: 0,
+                      flex: '1 1 auto',
+                    }}
+                  >
 
                     {formError && (
                       <div className="alert alert-danger">
@@ -2131,7 +2161,7 @@ const handleSubmit = async (event) => {
                   </div>
 
 
-                  <div className="modal-footer">
+                  <div className="modal-footer flex-shrink-0">
                     <button
                       type="button"
                       className="btn btn-outline-secondary"
